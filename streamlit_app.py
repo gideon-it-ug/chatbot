@@ -1,56 +1,310 @@
 import streamlit as st
-from openai import OpenAI
+import anthropic
 
-# Show title and description.
-st.title("💬 Chatbot")
-st.write(
-    "This is a simple chatbot that uses OpenAI's GPT-3.5 model to generate responses. "
-    "To use this app, you need to provide an OpenAI API key, which you can get [here](https://platform.openai.com/account/api-keys). "
-    "You can also learn how to build this app step by step by [following our tutorial](https://docs.streamlit.io/develop/tutorials/llms/build-conversational-apps)."
+# ── Page config ────────────────────────────────────────────────────────────────
+st.set_page_config(
+    page_title="ORA · AI Assistant",
+    page_icon="◈",
+    layout="centered",
+    initial_sidebar_state="collapsed",
 )
 
-# Ask user for their OpenAI API key via `st.text_input`.
-# Alternatively, you can store the API key in `./.streamlit/secrets.toml` and access it
-# via `st.secrets`, see https://docs.streamlit.io/develop/concepts/connections/secrets-management
-openai_api_key = st.text_input("OpenAI API Key", type="password")
-if not openai_api_key:
-    st.info("Please add your OpenAI API key to continue.", icon="🗝️")
-else:
+# ── Custom CSS ─────────────────────────────────────────────────────────────────
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:ital,wght@0,300;0,400;1,300&display=swap');
 
-    # Create an OpenAI client.
-    client = OpenAI(api_key=openai_api_key)
+/* ── Reset & Base ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-    # Create a session state variable to store the chat messages. This ensures that the
-    # messages persist across reruns.
-    if "messages" not in st.session_state:
+html, body, [data-testid="stAppViewContainer"] {
+    background: #0a0a0f !important;
+    color: #e8e4dc !important;
+    font-family: 'DM Mono', monospace !important;
+}
+
+[data-testid="stAppViewContainer"] {
+    background:
+        radial-gradient(ellipse 80% 50% at 50% -20%, rgba(255,200,80,0.08) 0%, transparent 60%),
+        radial-gradient(ellipse 50% 40% at 80% 80%, rgba(255,100,60,0.05) 0%, transparent 50%),
+        #0a0a0f !important;
+}
+
+/* Hide Streamlit chrome */
+#MainMenu, footer, header, [data-testid="stToolbar"],
+[data-testid="stDecoration"], [data-testid="stStatusWidget"] { display: none !important; }
+
+/* ── Main container ── */
+.block-container {
+    max-width: 760px !important;
+    padding: 3rem 2rem 6rem !important;
+    margin: 0 auto !important;
+}
+
+/* ── Hero Header ── */
+.ora-header {
+    text-align: center;
+    padding: 3.5rem 0 2.5rem;
+    position: relative;
+}
+.ora-header::before {
+    content: '';
+    display: block;
+    width: 1px;
+    height: 60px;
+    background: linear-gradient(to bottom, transparent, rgba(255,200,80,0.6));
+    margin: 0 auto 2rem;
+}
+.ora-logo {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 3.8rem;
+    letter-spacing: -0.04em;
+    background: linear-gradient(135deg, #ffc850 0%, #ff6c3c 60%, #e8e4dc 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    line-height: 1;
+    margin-bottom: 0.4rem;
+}
+.ora-tagline {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.72rem;
+    font-weight: 300;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: rgba(232,228,220,0.35);
+}
+.ora-divider {
+    width: 100%;
+    height: 1px;
+    background: linear-gradient(to right, transparent, rgba(255,200,80,0.3), transparent);
+    margin: 2.5rem 0;
+}
+
+/* ── API Key Input ── */
+[data-testid="stTextInput"] > div > div {
+    background: rgba(255,255,255,0.03) !important;
+    border: 1px solid rgba(255,200,80,0.2) !important;
+    border-radius: 4px !important;
+    color: #e8e4dc !important;
+    font-family: 'DM Mono', monospace !important;
+    font-size: 0.82rem !important;
+    transition: border-color 0.2s ease !important;
+}
+[data-testid="stTextInput"] > div > div:focus-within {
+    border-color: rgba(255,200,80,0.6) !important;
+    box-shadow: 0 0 0 3px rgba(255,200,80,0.06) !important;
+}
+[data-testid="stTextInput"] input {
+    color: #e8e4dc !important;
+    font-family: 'DM Mono', monospace !important;
+}
+[data-testid="stTextInput"] label {
+    color: rgba(232,228,220,0.5) !important;
+    font-size: 0.72rem !important;
+    letter-spacing: 0.12em !important;
+    text-transform: uppercase !important;
+    font-family: 'DM Mono', monospace !important;
+}
+
+/* ── Info / Alert boxes ── */
+[data-testid="stAlert"] {
+    background: rgba(255,200,80,0.05) !important;
+    border: 1px solid rgba(255,200,80,0.2) !important;
+    border-radius: 4px !important;
+    color: rgba(232,228,220,0.6) !important;
+    font-size: 0.78rem !important;
+    font-family: 'DM Mono', monospace !important;
+}
+
+/* ── Chat messages ── */
+[data-testid="stChatMessage"] {
+    background: transparent !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    gap: 0 !important;
+}
+
+/* User bubble */
+[data-testid="stChatMessage"][data-testid*="user"],
+.stChatMessage:has([data-testid="chatAvatarIcon-user"]) {
+    flex-direction: row-reverse !important;
+}
+
+/* Avatar icons */
+[data-testid="chatAvatarIcon-user"] > div,
+[data-testid="chatAvatarIcon-assistant"] > div {
+    width: 28px !important;
+    height: 28px !important;
+    border-radius: 4px !important;
+    font-size: 0.7rem !important;
+    font-family: 'Syne', sans-serif !important;
+    font-weight: 700 !important;
+}
+[data-testid="chatAvatarIcon-user"] > div {
+    background: rgba(255,200,80,0.15) !important;
+    border: 1px solid rgba(255,200,80,0.3) !important;
+    color: #ffc850 !important;
+}
+[data-testid="chatAvatarIcon-assistant"] > div {
+    background: rgba(255,108,60,0.12) !important;
+    border: 1px solid rgba(255,108,60,0.25) !important;
+    color: #ff6c3c !important;
+}
+
+/* Message content */
+[data-testid="stChatMessage"] .stMarkdown {
+    background: rgba(255,255,255,0.03) !important;
+    border: 1px solid rgba(255,255,255,0.06) !important;
+    border-radius: 6px !important;
+    padding: 0.85rem 1.1rem !important;
+    font-size: 0.88rem !important;
+    line-height: 1.7 !important;
+    color: #e8e4dc !important;
+    font-family: 'DM Mono', monospace !important;
+}
+[data-testid="stChatMessage"]:has([data-testid="chatAvatarIcon-user"]) .stMarkdown {
+    background: rgba(255,200,80,0.06) !important;
+    border-color: rgba(255,200,80,0.15) !important;
+}
+
+/* ── Chat input ── */
+[data-testid="stChatInputContainer"] {
+    background: rgba(10,10,15,0.95) !important;
+    border-top: 1px solid rgba(255,255,255,0.06) !important;
+    backdrop-filter: blur(20px) !important;
+    padding: 1rem 2rem !important;
+}
+[data-testid="stChatInput"] {
+    background: rgba(255,255,255,0.04) !important;
+    border: 1px solid rgba(255,255,255,0.1) !important;
+    border-radius: 6px !important;
+    color: #e8e4dc !important;
+    font-family: 'DM Mono', monospace !important;
+    font-size: 0.88rem !important;
+    transition: border-color 0.2s ease !important;
+}
+[data-testid="stChatInput"]:focus-within {
+    border-color: rgba(255,200,80,0.4) !important;
+    box-shadow: 0 0 0 3px rgba(255,200,80,0.05) !important;
+}
+
+/* Send button */
+[data-testid="stChatInputSubmitButton"] button {
+    background: linear-gradient(135deg, #ffc850, #ff6c3c) !important;
+    border: none !important;
+    border-radius: 4px !important;
+    color: #0a0a0f !important;
+    transition: opacity 0.2s ease !important;
+}
+[data-testid="stChatInputSubmitButton"] button:hover {
+    opacity: 0.85 !important;
+}
+
+/* ── Select / Selectbox ── */
+[data-testid="stSelectbox"] > div > div {
+    background: rgba(255,255,255,0.03) !important;
+    border: 1px solid rgba(255,255,255,0.1) !important;
+    border-radius: 4px !important;
+    color: #e8e4dc !important;
+    font-family: 'DM Mono', monospace !important;
+    font-size: 0.82rem !important;
+}
+[data-testid="stSelectbox"] label {
+    color: rgba(232,228,220,0.5) !important;
+    font-size: 0.72rem !important;
+    letter-spacing: 0.12em !important;
+    text-transform: uppercase !important;
+    font-family: 'DM Mono', monospace !important;
+}
+
+/* ── Columns gap ── */
+[data-testid="stHorizontalBlock"] { gap: 1rem !important; }
+
+/* ── Spinner ── */
+[data-testid="stSpinner"] { color: #ffc850 !important; }
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,200,80,0.2); border-radius: 2px; }
+</style>
+""", unsafe_allow_html=True)
+
+# ── Header ─────────────────────────────────────────────────────────────────────
+st.markdown("""
+<div class="ora-header">
+    <div class="ora-logo">ORA</div>
+    <div class="ora-tagline">Intelligent Conversation · Powered by Claude</div>
+</div>
+<div class="ora-divider"></div>
+""", unsafe_allow_html=True)
+
+# ── Sidebar / Settings ──────────────────────────────────────────────────────────
+with st.sidebar:
+    st.markdown("### ◈ Settings")
+    system_prompt = st.text_area(
+        "System Prompt",
+        value="You are ORA, a razor-sharp, insightful AI assistant. Be concise, precise, and occasionally brilliant. Avoid filler phrases.",
+        height=120,
+        help="Define ORA's personality and behaviour."
+    )
+    model_choice = st.selectbox(
+        "Model",
+        ["claude-opus-4-5", "claude-sonnet-4-5", "claude-haiku-4-5-20251001"],
+        index=1,
+    )
+    max_tokens = st.slider("Max tokens", 256, 4096, 1024, 128)
+    if st.button("🗑 Clear conversation", use_container_width=True):
         st.session_state.messages = []
+        st.rerun()
 
-    # Display the existing chat messages via `st.chat_message`.
-    for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
+# ── API Key ─────────────────────────────────────────────────────────────────────
+api_key = st.text_input(
+    "Anthropic API Key",
+    type="password",
+    placeholder="sk-ant-…",
+    help="Get your key at console.anthropic.com",
+)
 
-    # Create a chat input field to allow the user to enter a message. This will display
-    # automatically at the bottom of the page.
-    if prompt := st.chat_input("What is up?"):
+if not api_key:
+    st.info("◈  Enter your Anthropic API key above to begin.", icon=None)
+    st.stop()
 
-        # Store and display the current prompt.
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user"):
-            st.markdown(prompt)
+# ── Session state ───────────────────────────────────────────────────────────────
+if "messages" not in st.session_state:
+    st.session_state.messages = []
 
-        # Generate a response using the OpenAI API.
-        stream = client.chat.completions.create(
-            model="gpt-3.5-turbo",
+# ── Render history ──────────────────────────────────────────────────────────────
+for msg in st.session_state.messages:
+    with st.chat_message(msg["role"], avatar="◆" if msg["role"] == "user" else "◈"):
+        st.markdown(msg["content"])
+
+# ── Chat input ──────────────────────────────────────────────────────────────────
+if prompt := st.chat_input("Ask anything…"):
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    with st.chat_message("user", avatar="◆"):
+        st.markdown(prompt)
+
+    with st.chat_message("assistant", avatar="◈"):
+        client = anthropic.Anthropic(api_key=api_key)
+        response_placeholder = st.empty()
+        full_response = ""
+
+        with client.messages.stream(
+            model=model_choice,
+            max_tokens=max_tokens,
+            system=system_prompt,
             messages=[
                 {"role": m["role"], "content": m["content"]}
                 for m in st.session_state.messages
             ],
-            stream=True,
-        )
+        ) as stream:
+            for text_chunk in stream.text_stream:
+                full_response += text_chunk
+                response_placeholder.markdown(full_response + "▍")
+            response_placeholder.markdown(full_response)
 
-        # Stream the response to the chat using `st.write_stream`, then store it in 
-        # session state.
-        with st.chat_message("assistant"):
-            response = st.write_stream(stream)
-        st.session_state.messages.append({"role": "assistant", "content": response})
+    st.session_state.messages.append({"role": "assistant", "content": full_response})

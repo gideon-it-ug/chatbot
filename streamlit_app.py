@@ -279,16 +279,16 @@ if "messages" not in st.session_state:
 
 # ── Render history ──────────────────────────────────────────────────────────────
 for msg in st.session_state.messages:
-    with st.chat_message(msg["role"], avatar="◆" if msg["role"] == "user" else "◈"):
+    with st.chat_message(msg["role"], avatar="🙂" if msg["role"] == "user" else "🤖"):
         st.markdown(msg["content"])
 
 # ── Chat input ──────────────────────────────────────────────────────────────────
 if prompt := st.chat_input("Ask anything…"):
     st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user", avatar="◆"):
+    with st.chat_message("user", avatar="🙂"):
         st.markdown(prompt)
 
-    with st.chat_message("assistant", avatar="◈"):
+    with st.chat_message("assistant", avatar="🤖"):
         client = anthropic.Anthropic(api_key=api_key)
         response_placeholder = st.empty()
         full_response = ""

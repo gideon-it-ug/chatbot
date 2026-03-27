@@ -1,19 +1,61 @@
-# 💬 Chatbot template
+# ◈ ORA — AI Chat Assistant
 
-A simple Streamlit app that shows how to build a chatbot using OpenAI's GPT-3.5.
+A sleek, production-grade conversational AI built with Streamlit and powered by **Anthropic's Claude** models. Features real-time streaming, a dark editorial UI, and a configurable system prompt.
 
-[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://chatbot-template.streamlit.app/)
+[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://share.streamlit.io)
 
-### How to run it on your own machine
+---
 
-1. Install the requirements
+## Features
 
-   ```
-   $ pip install -r requirements.txt
-   ```
+- 🔮 **Powered by Claude** — choose between Opus, Sonnet, or Haiku
+- ⚡ **Streaming responses** — text appears in real time
+- 🎨 **Distinctive dark UI** — custom typography and amber/orange accents
+- 🛠 **Configurable** — edit the system prompt, model, and token limit from the sidebar
+- 💬 **Full conversation memory** — all turns sent as context each request
 
-2. Run the app
+---
 
-   ```
-   $ streamlit run streamlit_app.py
-   ```
+## How to run it on your own machine
+
+### 1. Clone the repo
+
+```bash
+git clone https://github.com/gideon-it-ug/chatbot.git
+cd chatbot
+```
+
+### 2. Install the requirements
+
+```bash
+pip install -r requirements.txt
+```
+
+### 3. Get an Anthropic API key
+
+Sign up at [console.anthropic.com](https://console.anthropic.com) and create an API key.
+
+### 4. Run the app
+
+```bash
+streamlit run streamlit_app.py
+```
+
+Enter your API key (`sk-ant-…`) in the input field when the app opens.
+
+---
+
+## Project structure
+
+```
+chatbot/
+├── streamlit_app.py   # Main application
+├── requirements.txt   # Python dependencies
+└── README.md
+```
+
+---
+
+## License
+
+Apache 2.0 — see [LICENSE](LICENSE) for details.

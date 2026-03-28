@@ -1,5 +1,5 @@
 import streamlit as st
-import anthropic
+import google.generativeai as genai
 
 # ── Page config ────────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -242,6 +242,34 @@ st.markdown("""
 <div class="ora-divider"></div>
 """, unsafe_allow_html=True)
 
+# ── Password login wall ─────────────────────────────────────────────────────────
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+
+if not st.session_state.authenticated:
+    st.markdown("""
+    <div style="text-align:center; padding: 1rem 0 2rem;">
+        <div style="font-family:'DM Mono',monospace; font-size:0.72rem; letter-spacing:0.2em;
+                    text-transform:uppercase; color:rgba(232,228,220,0.35); margin-bottom:1.5rem;">
+            Access Required
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    pwd = st.text_input("Password", type="password", placeholder="Enter access password…")
+    if st.button("Enter", use_container_width=True):
+        if pwd == st.secrets.get("APP_PASSWORD", "ora2024"):
+            st.session_state.authenticated = True
+            st.rerun()
+        else:
+            st.error("Incorrect password.")
+    st.stop()
+
+# ── API key from secrets (no user input needed) ─────────────────────────────────
+api_key = st.secrets.get("GEMINI_API_KEY", "")
+if not api_key:
+    st.error("API key not configured. Add GEMINI_API_KEY to your Streamlit secrets.")
+    st.stop()
+
 # ── Sidebar / Settings ──────────────────────────────────────────────────────────
 with st.sidebar:
     st.markdown("### ◈ Settings")
@@ -253,25 +281,18 @@ with st.sidebar:
     )
     model_choice = st.selectbox(
         "Model",
-        ["claude-opus-4-5", "claude-sonnet-4-5", "claude-haiku-4-5-20251001"],
+        ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash"],
         index=1,
     )
     max_tokens = st.slider("Max tokens", 256, 4096, 1024, 128)
     if st.button("🗑 Clear conversation", use_container_width=True):
         st.session_state.messages = []
         st.rerun()
-
-# ── API Key ─────────────────────────────────────────────────────────────────────
-api_key = st.text_input(
-    "Anthropic API Key",
-    type="password",
-    placeholder="sk-ant-…",
-    help="Get your key at console.anthropic.com",
-)
-
-if not api_key:
-    st.info("◈  Enter your Anthropic API key above to begin.", icon=None)
-    st.stop()
+    st.markdown("---")
+    if st.button("🔒 Log out", use_container_width=True):
+        st.session_state.authenticated = False
+        st.session_state.messages = []
+        st.rerun()
 
 # ── Session state ───────────────────────────────────────────────────────────────
 if "messages" not in st.session_state:
@@ -289,22 +310,22 @@ if prompt := st.chat_input("Ask anything…"):
         st.markdown(prompt)
 
     with st.chat_message("assistant", avatar="🤖"):
-        client = anthropic.Anthropic(api_key=api_key)
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel(
+            model_name=model_choice,
+            system_instruction=system_prompt,
+        )
+        # Build history for Gemini (exclude last user message, already appended)
+        history = []
+        for m in st.session_state.messages[:-1]:
+            role = "user" if m["role"] == "user" else "model"
+            history.append({"role": role, "parts": [m["content"]]})
+        chat = model.start_chat(history=history)
         response_placeholder = st.empty()
         full_response = ""
-
-        with client.messages.stream(
-            model=model_choice,
-            max_tokens=max_tokens,
-            system=system_prompt,
-            messages=[
-                {"role": m["role"], "content": m["content"]}
-                for m in st.session_state.messages
-            ],
-        ) as stream:
-            for text_chunk in stream.text_stream:
-                full_response += text_chunk
-                response_placeholder.markdown(full_response + "▍")
-            response_placeholder.markdown(full_response)
+        for chunk in chat.send_message_stream(prompt, generation_config={"max_output_tokens": max_tokens}):
+            full_response += chunk.text
+            response_placeholder.markdown(full_response + "▍")
+        response_placeholder.markdown(full_response)
 
     st.session_state.messages.append({"role": "assistant", "content": full_response})

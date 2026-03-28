@@ -1,5 +1,5 @@
 import streamlit as st
-import google.generativeai as genai
+from groq import Groq
 
 # ── Page config ────────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -265,9 +265,9 @@ if not st.session_state.authenticated:
     st.stop()
 
 # ── API key from secrets (no user input needed) ─────────────────────────────────
-api_key = st.secrets.get("GEMINI_API_KEY", "")
+api_key = st.secrets.get("GROQ_API_KEY", "")
 if not api_key:
-    st.error("API key not configured. Add GEMINI_API_KEY to your Streamlit secrets.")
+    st.error("API key not configured. Add GROQ_API_KEY to your Streamlit secrets.")
     st.stop()
 
 # ── Sidebar / Settings ──────────────────────────────────────────────────────────
@@ -281,7 +281,7 @@ with st.sidebar:
     )
     model_choice = st.selectbox(
         "Model",
-        ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash"],
+        ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"],
         index=1,
     )
     max_tokens = st.slider("Max tokens", 256, 4096, 1024, 128)
@@ -310,21 +310,21 @@ if prompt := st.chat_input("Ask anything…"):
         st.markdown(prompt)
 
     with st.chat_message("assistant", avatar="🤖"):
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel(
-            model_name=model_choice,
-            system_instruction=system_prompt,
-        )
-        # Build history for Gemini (exclude last user message, already appended)
-        history = []
-        for m in st.session_state.messages[:-1]:
-            role = "user" if m["role"] == "user" else "model"
-            history.append({"role": role, "parts": [m["content"]]})
-        chat = model.start_chat(history=history)
+        client = Groq(api_key=api_key)
         response_placeholder = st.empty()
         full_response = ""
-        for chunk in chat.send_message_stream(prompt, generation_config={"max_output_tokens": max_tokens}):
-            full_response += chunk.text
+        stream = client.chat.completions.create(
+            model=model_choice,
+            messages=[{"role": "system", "content": system_prompt}] + [
+                {"role": m["role"], "content": m["content"]}
+                for m in st.session_state.messages
+            ],
+            max_tokens=max_tokens,
+            stream=True,
+        )
+        for chunk in stream:
+            delta = chunk.choices[0].delta.content or ""
+            full_response += delta
             response_placeholder.markdown(full_response + "▍")
         response_placeholder.markdown(full_response)
 
